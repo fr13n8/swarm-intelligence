@@ -1,4 +1,4 @@
-#Swarm intelligence
+# Swarm intelligence
 >Swarm intelligence is defined as a collective behavior of a decentralized or self-organized system. These systems consist of numerous subjects with limited intelligence interacting with each other based on simple principles.
 
 https://user-images.githubusercontent.com/57458390/178143547-60869f3a-1654-47ad-a0be-a7dd403e58b7.mp4
