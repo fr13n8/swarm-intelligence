@@ -14,10 +14,10 @@ const (
 	Pi  = math.Pi
 	Tau = Pi * 2
 
-	signalTimer       = 4
+	signalTimer       = 3
 	signalRange       = 70
 	maxResourcesCount = 3
-	agentsCount       = 1000
+	agentsCount       = 1500
 )
 
 type Circle struct {

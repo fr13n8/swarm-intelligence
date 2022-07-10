@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/image/math/f64"
 
-	"github.com/fr13n8/game-of-life/camera"
+	"github.com/fr13n8/swarm-intelligence/camera"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
