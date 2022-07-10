@@ -8,15 +8,15 @@ From [Wikipedia](https://en.wikipedia.org/wiki/Swarm_intelligence), the free enc
 >The exact definition of swarm intelligence is still not formulated. In general, RI should be a multi-agent system that would have self-organizing behavior, which, in total, should exhibit some reasonable behavior.
 
 Modeling the swarm behavior of agents who must look for resources and bring them home.Agents are blind, walk with crooked steps, but they can transmit signals and receive them from other such agents. Each signal contains information about the location of a particular agent in relation to resources or home. It sends this information in a signal to other agents, and then using this information, other agents can calculate the distance and direction from their location in relation to resources or home. To implement this functionality, you need to follow the rules:
-- each agent has two direction counters in which the conditional number of steps to each point is recorded;
-- for each step, the counters increase by one, regardless of direction;
-- after **x** steps the agent transmits a signal with the value of the **first counter + the radius of y steps**, after **x/2** steps the value from the **second counter + the radius of y steps** (the radius is the maximum distance for which the signal is transmitted from the agent);
-- the agent sets a goal to get to one of the points;
-- at each step, the agent determines whether he is in the desired point, if his **(x, y)** coordinates coincide with the coordinates of the desired point, then he resets the counter of this point and turns **180°** and sets a new goal to be in the second point;
-- if the agent stumbles upon a point that is not the desired one, then the agent continues its movement;
-- if the agent is within the radius of the signal, then it compares the counter values ​​with the value of the received signal, if the value is less, than it updates the corresponding counter, and if this value corresponds to the target point, then the agent needs to move in the direction of the signal.
+‒ each agent has two direction counters in which the conditional number of steps to each point is recorded;
+‒ for each step, the counters increase by one, regardless of direction;
+‒ after **x** steps the agent transmits a signal with the value of the **first counter + the radius of y steps**, after **x/2** steps the value from the **second counter + the radius of y steps** (the radius is the maximum distance for which the signal is transmitted from the agent);
+‒ the agent sets a goal to get to one of the points;
+‒ at each step, the agent determines whether he is in the desired point, if his **(x, y)** coordinates coincide with the coordinates of the desired point, then he resets the counter of this point and turns **180°** and sets a new goal to be in the second point;
+‒ if the agent stumbles upon a point that is not the desired one, then the agent continues its movement;
+‒ if the agent is within the radius of the signal, then it compares the counter values ​​with the value of the received signal, if the value is less, than it updates the corresponding counter, and if this value corresponds to the target point, then the agent needs to move in the direction of the signal.
 
-###Note!
+##Note!
 
 **Agents should have a small percentage of route deviation, because if all agents move in a straight line, they will not be able to find the best route to the nearest point that is not on their path of movement.
 The agents should have different movement speeds so that the movement is chaotic and the recon agents have the opportunity to deviate from the path.**
