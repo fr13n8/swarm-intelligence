@@ -45,10 +45,44 @@ func (w *World) Update() error {
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		x, y := w.GetCursorCoordinates()
 		if y <= w.Height && x <= w.Width && y >= 0 && x >= 0 {
-			if ebiten.IsKeyPressed(ebiten.KeyShiftLeft) {
+			if c := GetCircleIn(float64(x), float64(y), resourcesCircles); c != nil {
+				c.SetPosition(float64(x), float64(y))
+			}
+		}
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyShiftLeft) {
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			x, y := w.GetCursorCoordinates()
+
+			if y <= w.Height && x <= w.Width && y >= 0 && x >= 0 {
+				if len(resourcesCircles) < maxResourcesCount {
+					resourcesCircles = append(resourcesCircles, &Circle{x: float64(x), y: float64(y), r: 20, c: color.RGBA{R: 223, G: 250, B: 90, A: 255}})
+				}
 				return nil
 			}
-			resourcesCircles[0].SetPosition(float64(x), float64(y))
+		}
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyControlLeft) {
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			x, y := w.GetCursorCoordinates()
+
+			if y <= w.Height && x <= w.Width && y >= 0 && x >= 0 {
+				if CheckIfPointInsideCircle(float64(x), float64(y), resourcesCircles) {
+					resourcesCircles = RemoveCircle(resourcesCircles, GetCircleIn(float64(x), float64(y), resourcesCircles))
+				}
+			}
+		}
+		return nil
+	}
+
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
+		x, y := w.GetCursorCoordinates()
+		if y <= w.Height && x <= w.Width && y >= 0 && x >= 0 {
+			if c := GetCircleIn(float64(x), float64(y), pedestalCircles); c != nil {
+				c.SetPosition(float64(x), float64(y))
+			}
 		}
 	}
 
@@ -119,7 +153,8 @@ func (w *World) Draw(screen *ebiten.Image) {
 			"Zoom (QE)\n"+
 			"Rotate (R)\n"+
 			"Reset camera (Space)\n"+
-			"Add/Remove Recource/Pedestal (LCM/RCM)/(LShift+LCM/RCM)\n"+
+			"Add/Remove Recource (LShift+LCM)/(LCntrl+LCM)\n"+
+			"Move Recource/Pedestal (LCM/RCM)\n"+
 			"Next step (N)\n", ebiten.CurrentTPS()),
 		2, 1,
 	)
@@ -215,4 +250,13 @@ func (w *World) drawCircle(screen *ebiten.Image, x, y, radius float64, clr color
 
 		screen.Set(x1, y1, clr)
 	}
+}
+
+func RemoveCircle(circles []*Circle, circle *Circle) []*Circle {
+	for i, c := range circles {
+		if c == circle {
+			return append(circles[:i], circles[i+1:]...)
+		}
+	}
+	return circles
 }

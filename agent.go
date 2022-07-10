@@ -14,10 +14,10 @@ const (
 	Pi  = math.Pi
 	Tau = Pi * 2
 
-	signalTimer = 4
-	signalRange = 40
-
-	agentsCount = 2000
+	signalTimer       = 4
+	signalRange       = 70
+	maxResourcesCount = 3
+	agentsCount       = 1000
 )
 
 type Circle struct {
@@ -30,17 +30,14 @@ type Pedestal []*Circle
 
 var (
 	BorderColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	AgentColor  = color.RGBA{R: 223, G: 86, B: 90, A: 255}
+	AgentColor  = color.RGBA{R: 56, G: 190, B: 255, A: 255}
 	LineColor   = color.RGBA{R: 255, G: 255, B: 255, A: 10}
 
 	resourcesCircles = Resources{
-		&Circle{x: 900, y: 300, r: 20, c: color.RGBA{R: 223, G: 250, B: 90, A: 255}},
 		&Circle{x: 900, y: 600, r: 20, c: color.RGBA{R: 223, G: 250, B: 90, A: 255}},
 	}
 	pedestalCircles = Pedestal{
 		&Circle{x: 100, y: 550, r: 5, c: color.RGBA{R: 255, G: 255, B: 255, A: 255}},
-		&Circle{x: 100, y: 50, r: 5, c: color.RGBA{R: 255, G: 255, B: 255, A: 255}},
-		&Circle{x: 210, y: 190, r: 5, c: color.RGBA{R: 255, G: 255, B: 255, A: 255}},
 	}
 	r = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
@@ -197,4 +194,13 @@ func CheckIfPointInsideCircle(x, y float64, circles []*Circle) bool {
 		}
 	}
 	return false
+}
+
+func GetCircleIn(x, y float64, circles []*Circle) *Circle {
+	for _, circle := range circles {
+		if math.Pow(x-circle.x, 2)+math.Pow(y-circle.y, 2) < math.Pow(circle.r, 2) {
+			return circle
+		}
+	}
+	return nil
 }
