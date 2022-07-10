@@ -1,4 +1,4 @@
-module github.com/fr13n8/game-of-life
+module github.com/fr13n8/swarm-intelligence
 
 go 1.17
 
