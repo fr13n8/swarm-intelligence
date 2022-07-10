@@ -22,7 +22,7 @@ Modeling the swarm behavior of agents who must look for resources and bring them
 
 ‒ if the agent is within the radius of the signal, then it compares the counter values ​​with the value of the received signal, if the value is less, than it updates the corresponding counter, and if this value corresponds to the target point, then the agent needs to move in the direction of the signal.
 
-##Note!
+## Note!
 
 **Agents should have a small percentage of route deviation, because if all agents move in a straight line, they will not be able to find the best route to the nearest point that is not on their path of movement.
 The agents should have different movement speeds so that the movement is chaotic and the recon agents have the opportunity to deviate from the path.**
