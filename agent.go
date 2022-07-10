@@ -34,7 +34,7 @@ var (
 	LineColor   = color.RGBA{R: 255, G: 255, B: 255, A: 10}
 
 	resourcesCircles = Resources{
-		&Circle{x: 900, y: 600, r: 20, c: color.RGBA{R: 223, G: 250, B: 90, A: 255}},
+		&Circle{x: 550, y: 100, r: 20, c: color.RGBA{R: 223, G: 250, B: 90, A: 255}},
 	}
 	pedestalCircles = Pedestal{
 		&Circle{x: 100, y: 550, r: 5, c: color.RGBA{R: 255, G: 255, B: 255, A: 255}},
@@ -52,7 +52,7 @@ type Agent struct {
 
 func NewAgent(x float64, y float64, angle float64) *Agent {
 	fRange := FloatRange{0, Tau}
-	sRange := FloatRange{2, 2.5}
+	sRange := FloatRange{0.1, 1}
 	cRange := FloatRange{0, signalTimer - 2}
 	gRange := FloatRange{0, 10}
 	goal := 0
@@ -121,7 +121,7 @@ func (a *Agent) SignalR(world *World, distance int) {
 					agent.SetAngleToR(a.x, a.y, dist)
 					agent.disR = distance
 					if agent.goal == 0 {
-						ebitenutil.DrawLine(world.Screen, a.x, a.y, agent.x, agent.y, LineColor)
+						// ebitenutil.DrawLine(world.Screen, a.x, a.y, agent.x, agent.y, LineColor)
 						agent.angle = agent.angR
 					}
 				}
@@ -139,7 +139,7 @@ func (a *Agent) SignalP(world *World, distance int) {
 					agents.SetAngleToP(a.x, a.y, dist)
 					agents.disP = distance
 					if agents.goal == 1 {
-						ebitenutil.DrawLine(world.Screen, a.x, a.y, agents.x, agents.y, LineColor)
+						// ebitenutil.DrawLine(world.Screen, a.x, a.y, agents.x, agents.y, LineColor)
 						agents.angle = agents.angP
 					}
 				}
