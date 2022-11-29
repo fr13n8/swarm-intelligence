@@ -23,5 +23,5 @@ To implement this functionality, you need to follow the rules:
 The agents should have different movement speeds so that the movement is chaotic and the recon agents have the opportunity to deviate from the path.**
 
 ## About implementation
-This is a running implementation of simple swarm intelligence written on go. \
+This is a implementation of simple swarm intelligence written on go. \
 For graphical implementation, the [ebiten](https://github.com/hajimehoshi/ebiten) 2d engine was used.
