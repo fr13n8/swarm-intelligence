@@ -1,17 +1,19 @@
 module github.com/fr13n8/swarm-intelligence
 
-go 1.17
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
-	github.com/hajimehoshi/ebiten/v2 v2.2.4
-	golang.org/x/image v0.0.0-20211028202545-6944b10bf410
+	github.com/hajimehoshi/ebiten/v2 v2.8.6
+	golang.org/x/image v0.25.0
 )
 
 require (
-	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20211213063430-748e38ca8aec // indirect
-	github.com/jezek/xgb v0.0.0-20210312150743-0e0f116e1240 // indirect
-	golang.org/x/exp v0.0.0-20220128181451-c853b6ddb95e // indirect
-	golang.org/x/mobile v0.0.0-20220112015953-858099ff7816 // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27 // indirect
+	github.com/ebitengine/gomobile v0.0.0-20250209143333-6071a2a2351c // indirect
+	github.com/ebitengine/hideconsole v1.0.0 // indirect
+	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/jezek/xgb v1.1.1 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 )

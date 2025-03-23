@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"runtime"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"golang.org/x/image/math/f64"
 
@@ -15,14 +18,17 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
+var numWorkers = runtime.NumCPU()
+
 type World struct {
-	Agents   []*Agent
-	Width    int
-	Height   int
-	camera   camera.Camera
-	LifeTime int
-	Paused   bool
-	Screen   *ebiten.Image
+	Agents           []*Agent
+	Width            int
+	Height           int
+	camera           camera.Camera
+	LifeTime         int
+	Paused           bool
+	Screen           *ebiten.Image
+	signalWorkerPool sync.WaitGroup
 }
 
 func NewWorld(width int, height int) *World {
@@ -32,13 +38,13 @@ func NewWorld(width int, height int) *World {
 		camera: camera.Camera{ViewPort: f64.Vec2{ScreenWidth, ScreenHeight}},
 		Paused: true,
 	}
+
 	return world
 }
 
 func (w *World) GetCursorCoordinates() (int, int) {
 	worldX, worldY := w.camera.ScreenToWorld(ebiten.CursorPosition())
-	x, y := int(worldX), int(worldY)
-	return x, y
+	return int(worldX), int(worldY)
 }
 
 func (w *World) Update() error {
@@ -57,15 +63,16 @@ func (w *World) Update() error {
 
 			if y <= w.Height && x <= w.Width && y >= 0 && x >= 0 {
 				if len(resourcesCircles) < maxResourcesCount {
-					resourcesCircles = append(resourcesCircles, &Circle{x: float64(x), y: float64(y), r: 20, c: color.RGBA{R: 223, G: 250, B: 90, A: 255}})
+					resourcesCircles = append(resourcesCircles, NewCircle(float64(x), float64(y), 20,
+						color.RGBA{R: 223, G: 250, B: 90, A: 255}))
 				}
 				return nil
 			}
 		}
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeyControlLeft) {
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+	if ebiten.IsKeyPressed(ebiten.KeyShiftLeft) {
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
 			x, y := w.GetCursorCoordinates()
 
 			if y <= w.Height && x <= w.Width && y >= 0 && x >= 0 {
@@ -90,24 +97,25 @@ func (w *World) Update() error {
 		w.Next()
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		w.Paused = true
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyEnter) || ebiten.IsKeyPressed(ebiten.KeyNumpadEnter) {
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeyNumpadEnter) {
 		w.Paused = false
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
-		w.camera.Position[0] -= 1
+		w.camera.Position[0] -= 10
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
-		w.camera.Position[0] += 1
+		w.camera.Position[0] += 10
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
-		w.camera.Position[1] -= 1
+		w.camera.Position[1] -= 10
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyArrowDown) {
-		w.camera.Position[1] += 1
+		w.camera.Position[1] += 10
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyQ) {
@@ -125,7 +133,7 @@ func (w *World) Update() error {
 		w.camera.Rotation += 1
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeySpace) {
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		w.camera.Reset()
 	}
 
@@ -136,15 +144,19 @@ func (w *World) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{R: 0, G: 0, B: 0, A: 255})
 
 	background := ebiten.NewImage(ScreenWidth, ScreenHeight)
+	background.Fill(color.RGBA{R: 0, G: 0, B: 0, A: 255})
 
 	w.Print(background)
 	w.Screen = background
+
 	if !w.Paused {
 		w.Next()
 	}
+
 	w.camera.Render(background, screen)
 
 	worldX, worldY := w.camera.ScreenToWorld(ebiten.CursorPosition())
+
 	ebitenutil.DebugPrintAt(
 		screen,
 		fmt.Sprintf("TPS: %0.2f\n"+
@@ -155,7 +167,7 @@ func (w *World) Draw(screen *ebiten.Image) {
 			"Reset camera (Space)\n"+
 			"Add/Remove Recource (LShift+LCM)/(LCntrl+LCM)\n"+
 			"Move Recource/Pedestal (LCM/RCM)\n"+
-			"Next step (N)\n", ebiten.CurrentTPS()),
+			"Next step (N)\n", ebiten.ActualTPS()),
 		2, 1,
 	)
 
@@ -168,23 +180,51 @@ func (w *World) Draw(screen *ebiten.Image) {
 	)
 }
 
-func Agents(count int) []*Agent {
-	agents := make([]*Agent, count)
-	return agents
-}
-
 func (w *World) Init() {
-	w.Agents = Agents(agentsCount)
+	w.Agents = make([]*Agent, agentsCount)
 	w.InitAgents()
 }
 
 func (w *World) InitAgents() {
-	for i := 0; i < agentsCount; i++ {
-		xRange := FloatRange{0, float64(w.Width)}
-		yRange := FloatRange{0, float64(w.Height)}
-		fRange := FloatRange{0, Tau}
-		w.Agents[i] = NewAgent(xRange.NextRandom(r), yRange.NextRandom(r), fRange.NextRandom(r))
+	var wg sync.WaitGroup
+	batchSize := agentsCount / numWorkers
+
+	for b := 0; b < numWorkers; b++ {
+		wg.Add(1)
+		go func(startIdx, endIdx int) {
+			defer wg.Done()
+
+			for i := startIdx; i < endIdx; i++ {
+				if i >= agentsCount {
+					break
+				}
+
+				x := GetNextRandom(0, float64(w.Width))
+				y := GetNextRandom(0, float64(w.Height))
+				angle := GetNextRandom(0, Tau)
+
+				w.Agents[i] = NewAgent(x, y, angle)
+			}
+		}(b*batchSize, (b+1)*batchSize)
 	}
+
+	if remCount := agentsCount % numWorkers; remCount > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			startIdx := numWorkers * batchSize
+
+			for i := startIdx; i < agentsCount; i++ {
+				x := GetNextRandom(0, float64(w.Width))
+				y := GetNextRandom(0, float64(w.Height))
+				angle := GetNextRandom(0, Tau)
+
+				w.Agents[i] = NewAgent(x, y, angle)
+			}
+		}()
+	}
+
+	wg.Wait()
 }
 
 func (w *World) Print(screen *ebiten.Image) {
@@ -195,29 +235,82 @@ func (w *World) Print(screen *ebiten.Image) {
 		w.drawCircle(screen, circle.x, circle.y, circle.r, circle.c, true)
 	}
 
-	for i := 0; i < w.Height; i++ {
-		for j := 0; j < w.Width; j++ {
-			if i == 0 {
-				ebitenutil.DrawRect(screen, float64(j), float64(i), 1, 1, BorderColor)
-			} else if i == w.Height-1 {
-				ebitenutil.DrawRect(screen, float64(j), float64(i), 1, 1, BorderColor)
-			} else if j == 0 {
-				ebitenutil.DrawRect(screen, float64(j), float64(i), 1, 1, BorderColor)
-			} else if j == w.Width-1 {
-				ebitenutil.DrawRect(screen, float64(j), float64(i), 1, 1, BorderColor)
+	borderWidth := float32(1.0)
+
+	// Top border
+	vector.StrokeLine(screen, 0, 1, float32(w.Width), 0, borderWidth, BorderColor, false)
+	// Bottom border
+	vector.StrokeLine(screen, 0, float32(w.Height-1), float32(w.Width), float32(w.Height-1), borderWidth, BorderColor, false)
+	// Left border
+	vector.StrokeLine(screen, 1, 0, 0, float32(w.Height), borderWidth, BorderColor, false)
+	// Right border
+	vector.StrokeLine(screen, float32(w.Width-1), 0, float32(w.Width-1), float32(w.Height), borderWidth, BorderColor, false)
+
+	var wg sync.WaitGroup
+	batchSize := len(w.Agents) / numWorkers
+
+	for b := 0; b < numWorkers; b++ {
+		wg.Add(1)
+		go func(startIdx, endIdx int) {
+			defer wg.Done()
+
+			for i := startIdx; i < endIdx; i++ {
+				if i >= len(w.Agents) {
+					break
+				}
+				w.Agents[i].Render(screen)
 			}
-		}
+		}(b*batchSize, (b+1)*batchSize)
 	}
 
-	for _, agent := range w.Agents {
-		agent.Render(screen)
+	if remCount := len(w.Agents) % numWorkers; remCount > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			startIdx := numWorkers * batchSize
+
+			for i := startIdx; i < len(w.Agents); i++ {
+				w.Agents[i].Render(screen)
+			}
+		}()
 	}
+
+	wg.Wait()
 }
 
 func (w *World) Next() {
-	for _, agent := range w.Agents {
-		agent.NextStep(w)
+	w.signalWorkerPool.Wait()
+
+	var wg sync.WaitGroup
+	batchSize := len(w.Agents) / numWorkers
+
+	for b := 0; b < numWorkers; b++ {
+		wg.Add(1)
+		go func(startIdx, endIdx int) {
+			defer wg.Done()
+
+			for i := startIdx; i < endIdx; i++ {
+				if i >= len(w.Agents) {
+					break
+				}
+				w.Agents[i].NextStep(w)
+			}
+		}(b*batchSize, (b+1)*batchSize)
 	}
+
+	if remCount := len(w.Agents) % numWorkers; remCount > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			startIdx := numWorkers * batchSize
+
+			for i := startIdx; i < len(w.Agents); i++ {
+				w.Agents[i].NextStep(w)
+			}
+		}()
+	}
+
+	wg.Wait()
 	w.LifeTime++
 }
 
@@ -226,27 +319,21 @@ func (w *World) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func (w *World) drawCircle(screen *ebiten.Image, x, y, radius float64, clr color.Color, fill bool) {
-	radius64 := radius
-	minAngle := math.Acos(1 - 1/radius64)
+	if fill {
+		vector.DrawFilledCircle(screen, float32(x), float32(y), float32(radius), clr, true)
+		return
+	}
 
-	for angle := float64(0); angle <= 360; angle += minAngle {
-		xDelta := radius64 * math.Cos(angle)
-		yDelta := radius64 * math.Sin(angle)
+	radius64 := radius
+	minAngle := math.Acos(1 - 0.5/radius64)
+
+	for angle := float64(0); angle <= Tau; angle += minAngle {
+		sin, cos := math.Sincos(angle)
+		xDelta := radius64 * cos
+		yDelta := radius64 * sin
 
 		x1 := int(math.Round(x + xDelta))
 		y1 := int(math.Round(y + yDelta))
-
-		if fill {
-			if y1 < int(y) {
-				for y2 := y1; y2 <= int(y); y2++ {
-					screen.Set(x1, y2, clr)
-				}
-			} else {
-				for y2 := y1; y2 > int(y); y2-- {
-					screen.Set(x1, y2, clr)
-				}
-			}
-		}
 
 		screen.Set(x1, y1, clr)
 	}

@@ -4,25 +4,38 @@ import (
 	"image/color"
 	"math"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 const (
-	Pi  = math.Pi
-	Tau = Pi * 2
-
+	Pi                = math.Pi
+	Tau               = Pi * 2
 	signalTimer       = 3
 	signalRange       = 70
 	maxResourcesCount = 3
 	agentsCount       = 1500
+
+	signalRangeSq = signalRange * signalRange
 )
 
 type Circle struct {
-	x, y, r float64
-	c       color.RGBA
+	x, y, r  float64
+	rSquared float64
+	c        color.RGBA
+}
+
+func NewCircle(x, y, r float64, c color.RGBA) *Circle {
+	return &Circle{
+		x:        x,
+		y:        y,
+		r:        r,
+		rSquared: r * r,
+		c:        c,
+	}
 }
 
 type Resources []*Circle
@@ -33,14 +46,22 @@ var (
 	AgentColor  = color.RGBA{R: 56, G: 190, B: 255, A: 255}
 	LineColor   = color.RGBA{R: 255, G: 255, B: 255, A: 10}
 
+	globalRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+	randMutex  sync.Mutex
+
 	resourcesCircles = Resources{
-		&Circle{x: 550, y: 100, r: 20, c: color.RGBA{R: 223, G: 250, B: 90, A: 255}},
+		NewCircle(550, 100, 20, color.RGBA{R: 223, G: 250, B: 90, A: 255}),
 	}
 	pedestalCircles = Pedestal{
-		&Circle{x: 100, y: 550, r: 5, c: color.RGBA{R: 255, G: 255, B: 255, A: 255}},
+		NewCircle(100, 350, 5, color.RGBA{R: 255, G: 255, B: 255, A: 255}),
 	}
-	r = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
+
+var circleSyncPool = sync.Pool{
+	New: func() interface{} {
+		return &Circle{r: signalRange, rSquared: signalRangeSq}
+	},
+}
 
 type Agent struct {
 	x, y, angle, speed float64
@@ -50,42 +71,45 @@ type Agent struct {
 	goal               int
 }
 
+func GetNextRandom(min, max float64) float64 {
+	randMutex.Lock()
+	defer randMutex.Unlock()
+	return min + globalRand.Float64()*(max-min)
+}
+
 func NewAgent(x float64, y float64, angle float64) *Agent {
-	fRange := FloatRange{0, Tau}
-	sRange := FloatRange{0.1, 1}
-	cRange := FloatRange{0, signalTimer - 2}
-	gRange := FloatRange{0, 10}
 	goal := 0
-	if gRange.NextRandom(r) > 5 {
+	if GetNextRandom(0, 10) > 5 {
 		goal = 1
 	}
 	return &Agent{
 		x:       x,
 		y:       y,
 		angle:   angle,
-		speed:   sRange.NextRandom(r),
-		angR:    fRange.NextRandom(r),
-		angP:    fRange.NextRandom(r),
+		speed:   GetNextRandom(0.1, 1),
+		angR:    GetNextRandom(0, Tau),
+		angP:    GetNextRandom(0, Tau),
 		disR:    100,
 		disP:    100,
-		counter: int(cRange.NextRandom(r)),
+		counter: int(GetNextRandom(0, signalTimer-2)),
 		goal:    goal,
 	}
 }
 
 func (a *Agent) NextStep(world *World) {
-	a.disR += 1
-	a.disP += 1
-	aRange := FloatRange{-0.05, 0.05}
-	a.angle += aRange.NextRandom(r)
+	a.disR++
+	a.disP++
+	a.angle += GetNextRandom(-0.05, 0.05)
 
-	nextX := a.x + a.speed*math.Sin(a.angle)
-	nextY := a.y + a.speed*math.Cos(a.angle)
+	sin, cos := math.Sincos(a.angle)
+	nextX := a.x + a.speed*sin
+	nextY := a.y + a.speed*cos
 
 	if nextX < 0 || int(nextX) >= world.Width || nextY < 0 || int(nextY) >= world.Height {
 		a.angle += Pi
-		a.x += math.Sin(a.angle)
-		a.y += math.Cos(a.angle)
+		sin, cos = math.Sincos(a.angle)
+		a.x += sin
+		a.y += cos
 	} else {
 		a.x = nextX
 		a.y = nextY
@@ -102,7 +126,7 @@ func (a *Agent) NextStep(world *World) {
 		a.disP = 0
 	}
 
-	a.counter += 1
+	a.counter++
 	if a.counter == signalTimer/2 {
 		a.SignalR(world, a.disR+signalRange)
 	}
@@ -113,43 +137,62 @@ func (a *Agent) NextStep(world *World) {
 }
 
 func (a *Agent) SignalR(world *World, distance int) {
-	for _, agent := range world.Agents {
-		if agent.disR > distance {
-			if CheckIfPointInsideCircle(agent.x, agent.y, []*Circle{{x: a.x, y: a.y, r: signalRange}}) {
-				dist := a.Distance(agent)
-				if dist <= signalRange {
+	tempCircle := circleSyncPool.Get().(*Circle)
+	tempCircle.x = a.x
+	tempCircle.y = a.y
+
+	world.signalWorkerPool.Add(1)
+	go func() {
+		defer world.signalWorkerPool.Done()
+		defer circleSyncPool.Put(tempCircle)
+
+		for _, agent := range world.Agents {
+			if agent.disR > distance {
+				dx, dy := agent.x-a.x, agent.y-a.y
+				distSq := dx*dx + dy*dy
+				if distSq <= signalRangeSq {
+					dist := math.Sqrt(distSq)
 					agent.SetAngleToR(a.x, a.y, dist)
 					agent.disR = distance
 					if agent.goal == 0 {
-						// ebitenutil.DrawLine(world.Screen, a.x, a.y, agent.x, agent.y, LineColor)
 						agent.angle = agent.angR
 					}
 				}
 			}
 		}
-	}
+	}()
 }
 
 func (a *Agent) SignalP(world *World, distance int) {
-	for _, agents := range world.Agents {
-		if agents.disP > distance {
-			if CheckIfPointInsideCircle(agents.x, agents.y, []*Circle{{x: a.x, y: a.y, r: signalRange}}) {
-				dist := a.Distance(agents)
-				if dist <= signalRange {
-					agents.SetAngleToP(a.x, a.y, dist)
-					agents.disP = distance
-					if agents.goal == 1 {
-						// ebitenutil.DrawLine(world.Screen, a.x, a.y, agents.x, agents.y, LineColor)
-						agents.angle = agents.angP
+	tempCircle := circleSyncPool.Get().(*Circle)
+	tempCircle.x = a.x
+	tempCircle.y = a.y
+
+	world.signalWorkerPool.Add(1)
+	go func() {
+		defer world.signalWorkerPool.Done()
+		defer circleSyncPool.Put(tempCircle)
+
+		for _, agent := range world.Agents {
+			if agent.disP > distance {
+				dx, dy := agent.x-a.x, agent.y-a.y
+				distSq := dx*dx + dy*dy
+				if distSq <= signalRangeSq {
+					dist := math.Sqrt(distSq)
+					agent.SetAngleToP(a.x, a.y, dist)
+					agent.disP = distance
+					if agent.goal == 1 {
+						agent.angle = agent.angP
 					}
 				}
 			}
 		}
-	}
+	}()
 }
 
 func (a *Agent) Distance(c2 *Agent) float64 {
-	return math.Hypot(c2.x-a.x, c2.y-a.y)
+	dx, dy := c2.x-a.x, c2.y-a.y
+	return math.Sqrt(dx*dx + dy*dy)
 }
 
 func (a *Agent) SetAngleToR(x float64, y float64, dist float64) {
@@ -171,7 +214,7 @@ func (a *Agent) SetAngleToP(x float64, y float64, dist float64) {
 }
 
 func (a *Agent) Render(screen *ebiten.Image) {
-	ebitenutil.DrawRect(screen, a.x, a.y, 1, 1, AgentColor)
+	vector.DrawFilledRect(screen, float32(a.x), float32(a.y), 1, 1, AgentColor, true)
 }
 
 func (c *Circle) SetPosition(x float64, y float64) {
@@ -179,17 +222,10 @@ func (c *Circle) SetPosition(x float64, y float64) {
 	c.y = y
 }
 
-type FloatRange struct {
-	min, max float64
-}
-
-func (fr *FloatRange) NextRandom(r *rand.Rand) float64 {
-	return fr.min + r.Float64()*(fr.max-fr.min)
-}
-
 func CheckIfPointInsideCircle(x, y float64, circles []*Circle) bool {
 	for _, circle := range circles {
-		if math.Pow(x-circle.x, 2)+math.Pow(y-circle.y, 2) < math.Pow(circle.r, 2) {
+		dx, dy := x-circle.x, y-circle.y
+		if dx*dx+dy*dy < circle.rSquared {
 			return true
 		}
 	}
@@ -198,7 +234,8 @@ func CheckIfPointInsideCircle(x, y float64, circles []*Circle) bool {
 
 func GetCircleIn(x, y float64, circles []*Circle) *Circle {
 	for _, circle := range circles {
-		if math.Pow(x-circle.x, 2)+math.Pow(y-circle.y, 2) < math.Pow(circle.r, 2) {
+		dx, dy := x-circle.x, y-circle.y
+		if dx*dx+dy*dy < circle.rSquared {
 			return circle
 		}
 	}

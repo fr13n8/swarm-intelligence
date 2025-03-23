@@ -15,6 +15,7 @@ func main() {
 
 	ebiten.SetWindowSize(ScreenWidth, ScreenHeight)
 	ebiten.SetWindowTitle("Swarm intelligence!")
+	ebiten.SetTPS(60)
 
 	if err := ebiten.RunGame(world); err != nil {
 		panic(err)
